@@ -1,50 +1,67 @@
 const express = require('express');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios'); // تأكد إنك مسطب axios
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); 
+app.use(express.json({ limit: '50mb' }));
 
-const apiKey = process.env.API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
+const API_KEY = process.env.API_KEY;
 
-app.get('/', (req, res) => res.send('Ordy AI Server is Live! 🚀'));
+app.get('/', (req, res) => res.send('Ordy AI Direct Server is Online! 🚀'));
 
+// نظام الشات والتلخيص باستخدام رابط مباشر (باي باس للمكتبة)
 app.post('/api/chat', async (req, res) => {
     try {
-        if (!apiKey || apiKey.length < 10) {
-            return res.status(500).json({ reply: "⚠️ المفتاح غير موجود أو قصير جداً في ريلاوي!" });
-        }
-
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const userMessages = req.body.messages;
         const lastMsg = userMessages[userMessages.length - 1];
 
-        let promptParts = [lastMsg.content];
+        // الرابط المباشر للإصدار المستقر v1
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+        let contents = [{
+            parts: [{ text: lastMsg.content }]
+        }];
+
+        // لو فيه صور، ضيفها للطلب المباشر
         if (lastMsg.images && lastMsg.images.length > 0) {
             lastMsg.images.forEach(img => {
-                promptParts.push({ inlineData: { data: img.split(',')[1], mimeType: "image/jpeg" } });
+                contents[0].parts.push({
+                    inline_data: {
+                        mime_type: "image/jpeg",
+                        data: img.split(',')[1]
+                    }
+                });
             });
         }
 
-        const result = await model.generateContent(promptParts);
-        res.json({ reply: result.response.text() });
+        const response = await axios.post(url, { contents });
+
+        if (response.data && response.data.candidates) {
+            const reply = response.data.candidates[0].content.parts[0].text;
+            res.json({ reply });
+        } else {
+            throw new Error("Invalid response from Google");
+        }
 
     } catch (e) {
-        console.error("CRITICAL ERROR:", e.message);
-        res.status(500).json({ reply: "خطأ في السيرفر: " + e.message });
+        console.error("DIRECT ERROR:", e.response ? e.response.data : e.message);
+        res.status(500).json({ reply: "خطأ في الاتصال المباشر بجوجل: " + (e.response ? e.response.data.error.message : e.message) });
     }
 });
 
 app.post('/api/summary', async (req, res) => {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const result = await model.generateContent("2 words title: " + req.body.text);
-        res.json({ title: result.response.text().trim() });
-    } catch (e) { res.json({ title: "New Chat" }); }
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        const contents = [{ parts: [{ text: "2 words title for: " + req.body.text }] }];
+        const response = await axios.post(url, { contents });
+        const title = response.data.candidates[0].content.parts[0].text.trim();
+        res.json({ title });
+    } catch (e) {
+        res.json({ title: "New Chat" });
+    }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Direct Server Live on ${PORT}`));
