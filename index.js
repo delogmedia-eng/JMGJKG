@@ -10,44 +10,35 @@ app.use(express.json({ limit: '50mb' }));
 
 const API_KEY = process.env.API_KEY;
 
-const ORDY_IDENTITY = `You are "Ordy AI Roblox", an expert in Luau scripting and Roblox game mechanics. Never mention your model provider. You are Ordy-Brain v2. Your responses should be helpful and accurate.`;
+const ORDY_IDENTITY = `You are "Ordy AI Roblox", an expert in Luau scripting. Never mention your model provider.`;
 
 app.post('/api/chat', async (req, res) => {
     try {
         const userMessages = req.body.messages;
         const lastMsg = userMessages[userMessages.length - 1];
-        
-        // هل المستخدم باعت صور؟
         const hasImages = lastMsg.images && lastMsg.images.length > 0;
 
         let requestBody = {};
 
         if (hasImages) {
-            // حالة 1: المستخدم باعت صورة (نشغل موديل الـ Vision)
-            let contentParts = [{ type: "text", text: lastMsg.content || "Please analyze this image for Roblox dev." }];
-            
+            let contentParts = [{ type: "text", text: lastMsg.content || "Analyze this image for Roblox." }];
             lastMsg.images.forEach(img => {
-                contentParts.push({
-                    type: "image_url",
-                    image_url: { url: img }
-                });
+                contentParts.push({ type: "image_url", image_url: { url: img } });
             });
 
             requestBody = {
                 model: "llama-3.2-11b-vision-preview",
                 messages: [
-                    { role: "system", content: ORDY_IDENTITY },
-                    { role: "user", content: contentParts }
+                    { role: "user", content: contentParts } // شيلنا الـ System من هنا عشان موديل الصور أحياناً بيرفضه
                 ],
                 max_tokens: 1024
             };
         } else {
-            // حالة 2: المستخدم باعت نص بس (نشغل الموديل الجبار بالذاكرة)
             const fullHistory = [
                 { role: "system", content: ORDY_IDENTITY },
                 ...userMessages.map(m => ({
                     role: m.role === 'user' ? 'user' : 'assistant',
-                    content: m.content
+                    content: m.content || "[صورة سابقة]" // حماية عشان Groq ميرفضش الرسايل الفاضية
                 }))
             ];
 
@@ -58,7 +49,6 @@ app.post('/api/chat', async (req, res) => {
             };
         }
 
-        // إرسال الطلب لـ Groq
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', requestBody, {
             headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
         });
@@ -66,20 +56,21 @@ app.post('/api/chat', async (req, res) => {
         res.json({ reply: response.data.choices[0].message.content });
 
     } catch (e) {
-        console.error("CHAT ERROR:", e.response ? JSON.stringify(e.response.data) : e.message);
-        res.status(500).json({ reply: "❌ عذراً، أوردي يواجه مشكلة في معالجة طلبك حالياً." });
+        // هنا هنخلي السيرفر يفضح Groq ويقولنا الخازوق فين بالظبط
+        const errorDetails = e.response ? JSON.stringify(e.response.data) : e.message;
+        console.error("CHAT ERROR:", errorDetails);
+        res.status(500).json({ reply: "❌ التفاصيل التقنية للخطأ:\n\n```json\n" + errorDetails + "\n```" });
     }
 });
 
-// نظام التلخيص (اللي شغال زي الفل)
 app.post('/api/summary', async (req, res) => {
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
             model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: "Summarize in strictly 2 short words: " + req.body.text }]
+            messages: [{ role: "user", content: "Summarize in 2 words: " + req.body.text }]
         }, { headers: { 'Authorization': `Bearer ${API_KEY}` } });
         res.json({ title: response.data.choices[0].message.content.trim().replace(/["*.]/g, '') });
     } catch (e) { res.json({ title: "New Chat" }); }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Smart Ordy Server is Live! 🚀`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Debug Server is Live! 🚀`));
