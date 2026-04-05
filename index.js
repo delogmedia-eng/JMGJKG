@@ -8,34 +8,21 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 
-// جلب المفتاح من ريلاوي
 const apiKey = process.env.API_KEY;
-
-// ****** التعديل السحري هنا ******
-// أجبرنا المكتبة تستخدم الإصدار v1 المستقر تماماً
 const genAI = new GoogleGenerativeAI(apiKey);
 
-app.get('/', (req, res) => res.send('Ordy AI is Server is Active! 🚀'));
+app.get('/', (req, res) => res.send('Ordy AI Legacy Server is Live! 🚀'));
 
 app.post('/api/chat', async (req, res) => {
     try {
-        // استخدمنا الموديل بدون كلمة latest وبدون v1beta
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' });
+        // غيرنا الموديل لـ gemini-1.0-pro لأنه أكثر استقراراً في السيرفرات
+        const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
         
         const userMessages = req.body.messages;
         const lastMsg = userMessages[userMessages.length - 1];
 
-        let promptParts = [lastMsg.content];
-        
-        if (lastMsg.images && lastMsg.images.length > 0) {
-            lastMsg.images.forEach(img => {
-                const data = img.split(',')[1];
-                const mime = img.split(';')[0].split(':')[1];
-                promptParts.push({ inlineData: { data: data, mimeType: mime } });
-            });
-        }
-
-        const result = await model.generateContent(promptParts);
+        // تنبيه: موديل 1.0 pro لا يدعم الصور، فلو بعت صورة هيرد نص بس
+        const result = await model.generateContent(lastMsg.content);
         const text = result.response.text();
         res.json({ reply: text });
 
@@ -47,7 +34,7 @@ app.post('/api/chat', async (req, res) => {
 
 app.post('/api/summary', async (req, res) => {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }, { apiVersion: 'v1' });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
         const result = await model.generateContent("Give me a 2 word title for: " + req.body.text);
         res.json({ title: result.response.text().trim() });
     } catch (e) {
