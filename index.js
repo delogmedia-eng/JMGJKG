@@ -1,67 +1,45 @@
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios'); // تأكد إنك مسطب axios
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json());
 
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.API_KEY; // مفتاح Groq اللي بيبدأ بـ gsk_
 
-app.get('/', (req, res) => res.send('Ordy AI Direct Server is Online! 🚀'));
+app.get('/', (req, res) => res.send('Ordy AI Groq Server is Flying! 🚀'));
 
-// نظام الشات والتلخيص باستخدام رابط مباشر (باي باس للمكتبة)
 app.post('/api/chat', async (req, res) => {
     try {
-        const userMessages = req.body.messages;
-        const lastMsg = userMessages[userMessages.length - 1];
+        const lastMsg = req.body.messages[req.body.messages.length - 1];
+        
+        const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+            model: "llama-3.3-70b-versatile", // موديل قوي جداً وسريع
+            messages: [{ role: "user", content: lastMsg.content }]
+        }, {
+            headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
+        });
 
-        // الرابط المباشر للإصدار المستقر v1
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
-        let contents = [{
-            parts: [{ text: lastMsg.content }]
-        }];
-
-        // لو فيه صور، ضيفها للطلب المباشر
-        if (lastMsg.images && lastMsg.images.length > 0) {
-            lastMsg.images.forEach(img => {
-                contents[0].parts.push({
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: img.split(',')[1]
-                    }
-                });
-            });
-        }
-
-        const response = await axios.post(url, { contents });
-
-        if (response.data && response.data.candidates) {
-            const reply = response.data.candidates[0].content.parts[0].text;
-            res.json({ reply });
-        } else {
-            throw new Error("Invalid response from Google");
-        }
-
+        res.json({ reply: response.data.choices[0].message.content });
     } catch (e) {
-        console.error("DIRECT ERROR:", e.response ? e.response.data : e.message);
-        res.status(500).json({ reply: "خطأ في الاتصال المباشر بجوجل: " + (e.response ? e.response.data.error.message : e.message) });
+        console.error("GROQ ERROR:", e.message);
+        res.status(500).json({ reply: "خطأ في السيرفر الجديد: " + e.message });
     }
 });
 
 app.post('/api/summary', async (req, res) => {
     try {
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-        const contents = [{ parts: [{ text: "2 words title for: " + req.body.text }] }];
-        const response = await axios.post(url, { contents });
-        const title = response.data.candidates[0].content.parts[0].text.trim();
-        res.json({ title });
-    } catch (e) {
-        res.json({ title: "New Chat" });
-    }
+        const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+            model: "llama-3.1-8b-instant",
+            messages: [{ role: "user", content: "اعطني عنوان من كلمتين فقط لهذا النص: " + req.body.text }]
+        }, {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        res.json({ title: response.data.choices[0].message.content.replace(/["*]/g, '') });
+    } catch (e) { res.json({ title: "New Chat" }); }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Direct Server Live on ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Groq Server Live on ${PORT}`));
