@@ -11,35 +11,40 @@ app.use(express.json({ limit: '50mb' }));
 const apiKey = process.env.API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
-app.get('/', (req, res) => res.send('Ordy AI Legacy Server is Live! 🚀'));
+app.get('/', (req, res) => res.send('Ordy AI Server is Live! 🚀'));
 
 app.post('/api/chat', async (req, res) => {
     try {
-        // غيرنا الموديل لـ gemini-1.0-pro لأنه أكثر استقراراً في السيرفرات
-        const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
-        
+        if (!apiKey || apiKey.length < 10) {
+            return res.status(500).json({ reply: "⚠️ المفتاح غير موجود أو قصير جداً في ريلاوي!" });
+        }
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const userMessages = req.body.messages;
         const lastMsg = userMessages[userMessages.length - 1];
 
-        // تنبيه: موديل 1.0 pro لا يدعم الصور، فلو بعت صورة هيرد نص بس
-        const result = await model.generateContent(lastMsg.content);
-        const text = result.response.text();
-        res.json({ reply: text });
+        let promptParts = [lastMsg.content];
+        if (lastMsg.images && lastMsg.images.length > 0) {
+            lastMsg.images.forEach(img => {
+                promptParts.push({ inlineData: { data: img.split(',')[1], mimeType: "image/jpeg" } });
+            });
+        }
+
+        const result = await model.generateContent(promptParts);
+        res.json({ reply: result.response.text() });
 
     } catch (e) {
-        console.error("LOG ERROR:", e);
+        console.error("CRITICAL ERROR:", e.message);
         res.status(500).json({ reply: "خطأ في السيرفر: " + e.message });
     }
 });
 
 app.post('/api/summary', async (req, res) => {
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
-        const result = await model.generateContent("Give me a 2 word title for: " + req.body.text);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent("2 words title: " + req.body.text);
         res.json({ title: result.response.text().trim() });
-    } catch (e) {
-        res.json({ title: "New Chat" });
-    }
+    } catch (e) { res.json({ title: "New Chat" }); }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Server live on ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
