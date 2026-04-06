@@ -27,9 +27,10 @@ app.post('/api/chat', async (req, res) => {
             });
 
             requestBody = {
-                model: "llama-3.2-11b-vision-preview",
+                // 👇 التعديل السحري هنا: استخدمنا الموديل الجديد بتاع الصور
+                model: "llama-3.2-90b-vision-preview",
                 messages: [
-                    { role: "user", content: contentParts } // شيلنا الـ System من هنا عشان موديل الصور أحياناً بيرفضه
+                    { role: "user", content: contentParts }
                 ],
                 max_tokens: 1024
             };
@@ -38,7 +39,7 @@ app.post('/api/chat', async (req, res) => {
                 { role: "system", content: ORDY_IDENTITY },
                 ...userMessages.map(m => ({
                     role: m.role === 'user' ? 'user' : 'assistant',
-                    content: m.content || "[صورة سابقة]" // حماية عشان Groq ميرفضش الرسايل الفاضية
+                    content: m.content || "[صورة سابقة]"
                 }))
             ];
 
@@ -56,7 +57,6 @@ app.post('/api/chat', async (req, res) => {
         res.json({ reply: response.data.choices[0].message.content });
 
     } catch (e) {
-        // هنا هنخلي السيرفر يفضح Groq ويقولنا الخازوق فين بالظبط
         const errorDetails = e.response ? JSON.stringify(e.response.data) : e.message;
         console.error("CHAT ERROR:", errorDetails);
         res.status(500).json({ reply: "❌ التفاصيل التقنية للخطأ:\n\n```json\n" + errorDetails + "\n```" });
@@ -67,10 +67,10 @@ app.post('/api/summary', async (req, res) => {
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
             model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: "Summarize in 2 words: " + req.body.text }]
+            messages: [{ role: "user", content: "Summarize in strictly 2 short words: " + req.body.text }]
         }, { headers: { 'Authorization': `Bearer ${API_KEY}` } });
         res.json({ title: response.data.choices[0].message.content.trim().replace(/["*.]/g, '') });
     } catch (e) { res.json({ title: "New Chat" }); }
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Debug Server is Live! 🚀`));
+app.listen(PORT, '0.0.0.0', () => console.log(`Smart Ordy Server is Live! 🚀`));
